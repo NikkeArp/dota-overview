@@ -1,4 +1,5 @@
-﻿using SteamApi;
+﻿using DataAPI.Database;
+using SteamApi;
 
 namespace DataAPI
 {
@@ -19,10 +20,14 @@ namespace DataAPI
         /// <param name="devKey">Steam web api developer key: https://steamcommunity.com/dev </param>
         /// <param name="steamDataAccess">object that handles general Steam data</param>
         /// <param name="dota2DataAccess">object that handles Dota 2 game data</param>
-        public DataAccess(string devKey, SteamApiDataAccess steamDataAccess, Dota2ApiDataAccess dota2DataAccess)
+        public DataAccess(string devKey, string connectionString, SteamApiDataAccess steamDataAccess, Dota2ApiDataAccess dota2DataAccess)
         {
+            DatabaseAccess.Init(connectionString);
             ApiClient.SetDeveloperKey(devKey);
+
             SteamData = steamDataAccess;
+            SteamData.Init();
+
             Dota2Data = dota2DataAccess;
         }
     }

@@ -2,7 +2,10 @@
 using DataAPI.Models;
 using System.Collections.Generic;
 using System.Linq;
+using DataAPI.Database;
 using CToken = System.Threading.CancellationToken;
+using System.Threading.Tasks;
+using System;
 
 namespace DataAPI
 {
@@ -21,40 +24,107 @@ namespace DataAPI
     public class SteamApiDataAccess
     {
         /// <summary>
-        /// Handles http request to steam web api.
+        /// Cache for profile ids already in database.
+        /// Used for checking if web api request is needed.
         /// </summary>
-        protected SteamApiClient _client;
+        protected HashSet<ulong> _profileIdCache;
+
 
         /// <summary>
-        /// Instantiates SteamApiDataAccess object
+        /// Handles http request to steam web api.
+        /// </summary>
+        protected readonly SteamApiClient _client;
+
+
+        /// <summary>
+        /// Instantiates SteamApiDataAccess object.
         /// </summary>
         public SteamApiDataAccess()
         {
             _client = new SteamApiClient();
         }
 
+
+        /// <summary>
+        /// Loads data from database to caches in memory.
+        /// </summary>
+        public void Init()
+        {
+            Task[] loadDataFromDbTasks = new Task[]
+            {
+                Task.Factory.StartNew(() => LoadProfileIdCache())
+            };
+            Task.WaitAll(loadDataFromDbTasks);
+        }
+
+
+        /// <summary>
+        /// Loads all profile ids to id cache.
+        /// </summary>
+        private void LoadProfileIdCache()
+        {
+            var profileIds = DatabaseAccess.ExecuteQuery<ulong>(SQL.SelectAllSteamProfileIds);
+            _profileIdCache = new HashSet<ulong>(profileIds);
+        }
+
+
         /// <summary>
         /// Gets steam profile collection by sending
         /// http request to steam web api.
         /// </summary>
         /// <param name="id64s">collection of 64-bit steam ids</param>
-        public virtual IEnumerable<SteamProfileModel> GetSteamProfileModels(CToken token, params string[] id64s)
+        public virtual IEnumerable<SteamProfileModel> GetSteamProfileModels(CToken token, params ulong[] id64s)
         {
-            // database access here in the future
+            var resultProfiles = new List<SteamProfileModel>();
+            List<string> getProfilesFromWebApi = new List<string>();
 
-            return GetSteamProfilesFromWebApi(token, id64s);
+            foreach (ulong id in id64s)
+            {
+                if (_profileIdCache.Contains(id))
+                {
+                    resultProfiles.AddRange(DatabaseAccess.ExecuteQuery<SteamProfileModel>(SQL.SelectSteamProfileById,
+                        new { Id64 = id }));
+                }
+                else
+                {
+                    getProfilesFromWebApi.Add(id.ToString());
+                }
+            }
+
+            if (getProfilesFromWebApi.Count > 0)
+            {
+                var profiles = GetSteamProfilesFromWebApi(token, getProfilesFromWebApi.ToArray());
+                DatabaseAccess.ExecuteCommand(SQL.InsertSteamProfile, profiles);
+                resultProfiles.AddRange(profiles);
+            }
+            
+            return resultProfiles;
         }
+
 
         /// <summary>
-        /// Gets single steam profile by id
+        /// Gets single steam profile by id.
         /// </summary>
         /// <param name="id64">64-bit steam id</param>
-        public virtual SteamProfileModel GetSteamProfileModel(string id64, CToken token)
+        public virtual SteamProfileModel GetSteamProfileModel(ulong id64, CToken token)
         {
-            // database access here in the future
+            if (_profileIdCache.Contains(id64)) // Check cache if profile exists in db
+            {
+                return DatabaseAccess.ExecuteQuery<SteamProfileModel>(SQL.SelectSteamProfileById,
+                    new { Id64 = id64 })[0];
+            }
+            else 
+            {
+                // Get profile from web api
+                var profile = GetSteamProfileFromWebAPI(id64.ToString(), token);
 
-            return GetSteamProfileFromWebAPI(id64, token);
+                // store profile to db
+                DatabaseAccess.ExecuteCommand(SQL.InsertSteamProfile, profile); 
+
+                return profile;
+            }
         }
+
 
         /// <summary>
         /// Gets single steam profile by sending
@@ -67,9 +137,11 @@ namespace DataAPI
             return new SteamProfileModel(apiResponse)
             {
                 AvatarFullBytes = GetProfilePic(apiResponse.AvatarFullURL),
-                AvatarMediumBytes = GetProfilePic(apiResponse.AvatarMediumURL)
+                AvatarMediumBytes = GetProfilePic(apiResponse.AvatarMediumURL),
+                AvatarSmallBytes = GetProfilePic(apiResponse.AvatarURL)
             };
         }
+
 
         /// <summary>
         /// Gets steam profile collection by sending
@@ -85,9 +157,11 @@ namespace DataAPI
             return apiResponse.Select(x => new SteamProfileModel(x)
             {
                 AvatarFullBytes = GetProfilePic(x.AvatarFullURL),
-                AvatarMediumBytes = GetProfilePic(x.AvatarMediumURL)
+                AvatarMediumBytes = GetProfilePic(x.AvatarMediumURL),
+                AvatarSmallBytes = GetProfilePic(x.AvatarURL)
             });
         }
+
 
         /// <summary>
         /// Gets image bytes by sending http request to url

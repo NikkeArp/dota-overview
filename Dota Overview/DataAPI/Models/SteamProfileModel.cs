@@ -94,6 +94,17 @@ namespace DataAPI.Models
         public byte[] AvatarMediumBytes { get; set; }
 
         /// <summary>
+        /// Medium (32x32) avatar image as bytes
+        /// </summary>
+        public byte[] AvatarSmallBytes { get; set; }
+
+        /// <summary>
+        /// Default constructor
+        /// </summary>
+        public SteamProfileModel()
+        { }
+
+        /// <summary>
         /// Instantiates SteamProfileModel object from
         /// steam api response model.
         /// </summary>

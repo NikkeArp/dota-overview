@@ -5,13 +5,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="SteamApiClient">
-      <HintPath>..\..\..\steam-api-core\SteamWebRequest\SteamApiClient\bin\Release\netstandard2.0\SteamApiClient.dll</HintPath>
-    </Reference>
+    <PackageReference Include="Dapper" Version="2.0.30" />
+    <PackageReference Include="System.Data.SQLite.Core" Version="1.0.112" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Database\" />
+    <Reference Include="SteamApiClient">
+      <HintPath>..\..\..\steam-api-core\SteamWebRequest\SteamApiClient\bin\Release\netstandard2.0\SteamApiClient.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>
